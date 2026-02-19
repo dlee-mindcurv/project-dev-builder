@@ -1,6 +1,6 @@
 ---
-name: hello-city
-description: Writes "Hello City" to hello-city.success.md in the project root
+name: build-user-story
+description: Builds the solution for a user story per its acceptance criteria.
 tools: Read, Write, Edit
 model: sonnet
 ---
@@ -19,8 +19,6 @@ All application files live in the app directory provided by the orchestrator. Cr
 
 ## CRITICAL: Status update
 
-When complete, you MUST update the feature file at the path provided by the orchestrator:
-- Set the `build` job status to `"generated"` (NOT `"done"`)
-- respsond with a JSON object `{"success":true"}`
-- If the feature file path was not provided, report this as an error in your JSON response
-- After this update, STOP.
+Upon successful completion, In the feature file (`$FEATURE_FILE`) update the current story:
+- Set the `build` job status to `done`
+- Stop the agent

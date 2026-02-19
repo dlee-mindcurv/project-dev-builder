@@ -22,28 +22,28 @@
       ],
       "priority": 1,
       "model": "haiku",
-      "passes": true,
+      "passes": false,
       "notes": "",
       "agents": [
         {
-          "name": "city",
-          "agent": "hello-city",
-          "status": "done",
+          "name": "build",
+          "agent": "build-user-story",
+          "status": "pending",
           "dependsOn": null,
           "notes": ""
         },
         {
-          "name": "province",
-          "agent": "hello-province",
-          "status": "done",
-          "dependsOn": "hello_city",
+          "name": "playwright",
+          "agent": "run-playwright",
+          "status": "pending",
+          "dependsOn": "build",
           "notes": ""
         },
         {
-          "name": "world",
-          "agent": "hello-world",
-          "status": "done",
-          "dependsOn": "province",
+          "name": "lint",
+          "agent": "run-lint",
+          "status": "pending",
+          "dependsOn": "playwright",
           "notes": ""
         }
       ]
@@ -60,28 +60,28 @@
       ],
       "priority": 2,
       "model": "haiku",
-      "passes": true,
+      "passes": false,
       "notes": "",
       "agents": [
         {
-          "name": "city",
-          "agent": "hello-city",
-          "status": "done",
+          "name": "build",
+          "agent": "build-user-story",
+          "status": "pending",
           "dependsOn": null,
           "notes": ""
         },
         {
-          "name": "province",
-          "agent": "hello-province",
-          "status": "done",
-          "dependsOn": "hello_city",
+          "name": "playwright",
+          "agent": "run-playwright",
+          "status": "pending",
+          "dependsOn": "build",
           "notes": ""
         },
         {
-          "name": "world",
-          "agent": "hello-world",
-          "status": "done",
-          "dependsOn": "province",
+          "name": "lint",
+          "agent": "run-lint",
+          "status": "pending",
+          "dependsOn": "playwright",
           "notes": ""
         }
       ]

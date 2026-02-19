@@ -66,9 +66,6 @@ Read the **Agent Skills Mapping** table from `CLAUDE.md`
      - Story's acceptance criteria
      - `Feature file: $PRD_JSON`
      - Application directory: `$APP_DIR`
-   - Analyze the output of the agent to determine if it succeeded or failed.
-   - If the agent succeeded, update the `jobs.json` file with the agent's name and `"status":"done"`. When updating `jobs.json`, use the story index (`STORY_INDEX`) to target the specific story. For example: `.userStories[INDEX].agents[] | select(.name == "AGENT_NAME")` — **never** use `.userStories[].agents[]` (which updates all stories).
-
 
 ## All Stories Complete
 1. Output no more stories available to be processed: <promise>`$STOP_LOOP_PROMISE`<promise>"

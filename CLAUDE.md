@@ -18,10 +18,10 @@ Agent definitions live in `.claude/agents/`
 
 Skills to inject into subagents. The orchestrator reads this mapping and passes skill content inline to each agent type. Append `:full` to a skill name to load AGENTS.md (full rules with code examples) instead of the default SKILL.md (compact index).
 
-| Agent            | Skills                             |
-|------------------|------------------------------------|
-| `hello-city`     | `vercel-react-best-practices:full` |
-| `hello-province` |                                    |
-| `hello-world`    | `webapp-testing`                    |
+| Agent              | Skills                             |
+|--------------------|------------------------------------|
+| `build-user-story` | `vercel-react-best-practices:full` |
+| `run-playwright`   | `webapp-testing`                   |
+| `run-lint`      |                                    |
 
 

@@ -1,5 +1,5 @@
 ---
-name: hello-world
+name: run-lint
 description: Writes "Hello World" to hello-world.success.md in the project root
 ---
 
