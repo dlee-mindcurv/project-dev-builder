@@ -1,17 +1,90 @@
-[
-  {
-    "name": "hello-world",
-    "complete": "done",
-    "dependsOn": "hello-province"
-  },
-  {
-    "name": "hello-province",
-    "complete": "done",
-    "dependsOn": "hello-city"
-  },
-  {
-    "name": "hello-city",
-    "complete": "done",
-    "dependsOn": null
-  }
-]
+{
+  "project": "TaskFlow",
+  "appDir": ".",
+  "branchName": "feature/digital-clock",
+  "description": "A retro-styled digital clock in the application Footer showing current time in 24-hour format (HH:MM:SS) with red digits on black background, updating every second. Clicking the clock opens NBA.com in a new tab.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Digital Clock in Footer",
+      "description": "As a user, I want a retro-styled digital clock in the Footer so that I can check the current time at a glance and quickly access NBA.com.",
+      "acceptanceCriteria": [
+        "A DigitalClock component is created and rendered inside the Footer, positioned after the 'Back to Top' button and before the decorative dots",
+        "The clock displays the current local time in 24-hour format as HH:MM:SS (e.g., '14:35:07'), zero-padded",
+        "The time updates every second using a client-side setInterval, with cleanup on unmount",
+        "The clock digits are red (#ff0000 or similar) on a solid black (#000000) background",
+        "The font is monospace (font-mono in Tailwind) to evoke a classic segmented display",
+        "The clock container has rounded corners, padding, and is horizontally centered in the footer",
+        "The styling is identical in light mode and dark mode (black background with red digits in both)",
+        "Clicking the clock opens https://www.nba.com in a new tab (target='_blank', rel='noopener noreferrer')",
+        "The clock has cursor-pointer and a visible hover state (e.g., subtle glow or brightness change)",
+        "The clock link has an aria-label describing the destination (e.g., 'Visit NBA.com')"
+      ],
+      "priority": 1,
+      "model": "haiku",
+      "passes": true,
+      "notes": "",
+      "agents": [
+        {
+          "name": "city",
+          "agent": "hello-city",
+          "status": "done",
+          "dependsOn": null,
+          "notes": ""
+        },
+        {
+          "name": "province",
+          "agent": "hello-province",
+          "status": "done",
+          "dependsOn": "hello_city",
+          "notes": ""
+        },
+        {
+          "name": "world",
+          "agent": "hello-world",
+          "status": "done",
+          "dependsOn": "province",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "US-002",
+      "title": "Blinking Colons Like a Real 80s Clock",
+      "description": "As a user, I want the colon separators in the clock to blink on and off every second so that the clock feels authentically retro like a real 1980s bedside alarm clock.",
+      "acceptanceCriteria": [
+        "The two colon characters (:) between HH:MM and MM:SS toggle visibility every second (visible on even seconds, hidden on odd seconds)",
+        "When hidden, the colons are replaced with an equal-width blank space so the digits do not shift or jump",
+        "The blinking is driven by the same timer as the clock update, not a separate interval",
+        "A data-testid='clock-colon' attribute is on each colon span for testability"
+      ],
+      "priority": 2,
+      "model": "haiku",
+      "passes": true,
+      "notes": "",
+      "agents": [
+        {
+          "name": "city",
+          "agent": "hello-city",
+          "status": "done",
+          "dependsOn": null,
+          "notes": ""
+        },
+        {
+          "name": "province",
+          "agent": "hello-province",
+          "status": "done",
+          "dependsOn": "hello_city",
+          "notes": ""
+        },
+        {
+          "name": "world",
+          "agent": "hello-world",
+          "status": "done",
+          "dependsOn": "province",
+          "notes": ""
+        }
+      ]
+    }
+  ]
+}
