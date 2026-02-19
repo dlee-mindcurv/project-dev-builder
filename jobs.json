@@ -1,6 +1,6 @@
 {
   "project": "TaskFlow",
-  "appDir": ".",
+  "appDir": "./my-app",
   "branchName": "feature/digital-clock",
   "description": "A retro-styled digital clock in the application Footer showing current time in 24-hour format (HH:MM:SS) with red digits on black background, updating every second. Clicking the clock opens NBA.com in a new tab.",
   "userStories": [

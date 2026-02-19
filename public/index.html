@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Retro 80s Clock</title>
+  <style>
+    body {
+      background: #0a0a0a;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      font-family: 'Courier New', monospace;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #clock {
+      display: flex;
+      align-items: center;
+      font-size: 5rem;
+      color: #ff4400;
+      text-shadow: 0 0 10px #ff4400, 0 0 20px #ff4400;
+      letter-spacing: 0.05em;
+    }
+
+    .clock-digit {
+      display: inline-block;
+      min-width: 1.2ch;
+      text-align: center;
+    }
+
+    .clock-colon {
+      display: inline-block;
+      width: 0.4em;
+      text-align: center;
+      transition: opacity 0.05s;
+    }
+
+    .clock-colon.hidden {
+      opacity: 0;
+    }
+
+    /* Footer styles */
+    footer {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 0 24px;
+      gap: 16px;
+    }
+
+    #back-to-top {
+      background: transparent;
+      border: 1px solid #ff4400;
+      color: #ff4400;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+      padding: 6px 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    #back-to-top:hover {
+      background: #ff4400;
+      color: #000;
+    }
+
+    /* DigitalClock component styles */
+    #digital-clock-link {
+      display: flex;
+      justify-content: center;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    #digital-clock-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #000000;
+      color: #ff0000;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 1.5rem;
+      padding: 10px 20px;
+      border-radius: 8px;
+      letter-spacing: 0.08em;
+      /* Identical in light and dark mode */
+      text-shadow: 0 0 6px #ff0000;
+      transition: filter 0.2s, box-shadow 0.2s;
+    }
+
+    #digital-clock-link:hover #digital-clock-container {
+      filter: brightness(1.4);
+      box-shadow: 0 0 12px #ff0000;
+    }
+
+    .footer-dots {
+      color: #444;
+      letter-spacing: 0.3em;
+      font-size: 1rem;
+    }
+
+    /* Ensure identical styling regardless of prefers-color-scheme */
+    @media (prefers-color-scheme: light) {
+      #digital-clock-container {
+        background-color: #000000;
+        color: #ff0000;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div id="clock">
+      <span class="clock-digit" id="hours"></span>
+      <span class="clock-colon" data-testid="clock-colon" id="colon1">:</span>
+      <span class="clock-digit" id="minutes"></span>
+      <span class="clock-colon" data-testid="clock-colon" id="colon2">:</span>
+      <span class="clock-digit" id="seconds"></span>
+    </div>
+  </main>
+
+  <footer>
+    <button id="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})">Back to Top</button>
+
+    <!-- DigitalClock component -->
+    <a
+      id="digital-clock-link"
+      href="https://www.nba.com"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Visit NBA.com"
+    >
+      <div id="digital-clock-container">
+        <span id="footer-clock-display">00:00:00</span>
+      </div>
+    </a>
+
+    <div class="footer-dots">. . . . . . . . . .</div>
+  </footer>
+
+  <script>
+    function pad(n) {
+      return String(n).padStart(2, '0');
+    }
+
+    function updateClock() {
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const seconds = now.getSeconds();
+
+      document.getElementById('hours').textContent = pad(hours);
+      document.getElementById('minutes').textContent = pad(minutes);
+      document.getElementById('seconds').textContent = pad(seconds);
+
+      // Toggle colon visibility: visible on even seconds, hidden on odd seconds
+      const colons = document.querySelectorAll('[data-testid="clock-colon"]');
+      const isEven = seconds % 2 === 0;
+      colons.forEach(colon => {
+        if (isEven) {
+          colon.classList.remove('hidden');
+        } else {
+          colon.classList.add('hidden');
+        }
+      });
+
+      // Update footer DigitalClock display (24-hour HH:MM:SS)
+      const footerDisplay = document.getElementById('footer-clock-display');
+      if (footerDisplay) {
+        footerDisplay.textContent = pad(hours) + ':' + pad(minutes) + ':' + pad(seconds);
+      }
+    }
+
+    // Initial update
+    updateClock();
+
+    // Single interval drives both time and colon blink
+    const clockInterval = setInterval(updateClock, 1000);
+
+    // Cleanup on page unload (analogous to unmount cleanup)
+    window.addEventListener('unload', function() {
+      clearInterval(clockInterval);
+    });
+  </script>
+</body>
+</html>
