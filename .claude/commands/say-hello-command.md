@@ -25,10 +25,11 @@ Read the **Agent Skills Mapping** table from `CLAUDE.md`
 
 ## Steps
 
-1. Use Bash to run `jq` against `jobs.json` (where `$APP_DIR` is the project root) to read each job's `userStories`'s `id`,`acceptanceCriteria`,`model`,`passes`, and `agents` status:
+1. Use Bash to run `jq` against `$PRD_JSON` to read each job's `userStories`'s `id`,`appDir`,`acceptanceCriteria`,`model`,`passes`, and `agents` status:
    ```
    jq -r 'first(.userStories | to_entries[] | select(.value.passes == false)) // empty | "\(.key) \(.value.id) \(.value.model) \(.value.passes) \(.value.agents | map("\(.name):\(.status):\(.dependsOn)") | join(","))"' "jobs.json"
    ```
+- set `$APP_DIR` to the `appDir` of the job
 
 ## Provision Story
    - If no user story is available with a `passes:false` status (jq output is empty), jump to **All Stories Complete** task, **DOING NOTHING ELSE**
@@ -60,9 +61,11 @@ Read the **Agent Skills Mapping** table from `CLAUDE.md`
 ## Dispatch Agents
    - Skill content: include any `<skill>` blocks resolved for this agent type from the Provisioned Agent step. Wrap each skill's content as: `<skill name="skill-name">\n[file content]\n</skill>`
    - Use Bash to DISPATCH a provisioned agent with its associated skills.
-   - **CRITICAL**: Every agent prompt MUST include the following: 
-     - `Feature file: $PRD_JSON` 
+   - **CRITICAL**: Every agent prompt MUST include the following:
+     - **begin with:** `Your assigned story is {id} ("{title}"). Work ONLY on this story — do not implement, plan, or act on any other story.`
      - Story's acceptance criteria
+     - `Feature file: $PRD_JSON`
+     - Application directory: `$APP_DIR`
    - Analyze the output of the agent to determine if it succeeded or failed.
    - If the agent succeeded, update the `jobs.json` file with the agent's name and `"status":"done"`. When updating `jobs.json`, use the story index (`STORY_INDEX`) to target the specific story. For example: `.userStories[INDEX].agents[] | select(.name == "AGENT_NAME")` — **never** use `.userStories[].agents[]` (which updates all stories).
 
