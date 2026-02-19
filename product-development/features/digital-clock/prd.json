@@ -56,7 +56,7 @@
         {
           "name": "test",
           "agent": "write-tests",
-          "status": "done",
+          "status": "pending",
           "dependsOn": "typecheck",
           "notes": ""
         }

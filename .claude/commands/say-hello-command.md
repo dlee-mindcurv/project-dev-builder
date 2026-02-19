@@ -7,8 +7,13 @@ argument-hint: [path to prd.json]
 # Say Hello Command
 
 ## Bootstrap
-- set `$PRD_JSON` to the first argument passed to the command
-- set `$STOP_LOOP_PROMISE` to "JOBS_COMPLETE"
+- Set `$PRD_JSON` to the first argument passed to the command
+- Set `$STOP_LOOP_PROMISE` to "JOBS_COMPLETE"
+- Derive the feature-name from `$PRD_JSON` (e.g., for `product-development/features/pink-footer/prd.json`, the feature-name is `pink-footer`).
+- Derive the feature-directory from `$PRD_JSON` (e.g., for `product-development/features/pink-footer/prd.json`, the feature-directory is `product-development/features/pink-footer/`).
+- Set `$LOG_FILE` to `<feature-directory>/agent-log.json`
+
+
 
 ## Rules
 - Each agent MUST receive `$PRD_JSON` in its prompt so it may update its own status.
@@ -19,8 +24,8 @@ argument-hint: [path to prd.json]
 - Do NOT take initiative or deviate from the steps outlined in this document.
 
 
-
 ## Skill resolution
+
 Read the **Agent Skills Mapping** table from `CLAUDE.md`
 
 ## Steps
@@ -30,6 +35,15 @@ Read the **Agent Skills Mapping** table from `CLAUDE.md`
    jq -r 'first(.userStories | to_entries[] | select(.value.passes == false)) // empty | "\(.key) \(.value.id) \(.value.model) \(.value.passes) \(.value.agents | map("\(.name):\(.status):\(.dependsOn)") | join(","))"' "jobs.json"
    ```
 - set `$APP_DIR` to the `appDir` of the job
+
+- Run a single consolidated status query:
+```bash
+jq '{
+  freshStart: ([.userStories[0].jobs[].status] | all(. == "pending")),
+}' $PRD_JSON
+```
+If `freshStart` is `true` (or if `$LOG_FILE` doesn't exist), create/reset `$LOG_FILE` to `[]`.
+
 
 ## Provision Story
    - If no user story is available with a `passes:false` status (jq output is empty), jump to **All Stories Complete** task, **DOING NOTHING ELSE**
@@ -59,6 +73,7 @@ Read the **Agent Skills Mapping** table from `CLAUDE.md`
        5. Store resolved skills as a mapping of agent type → list of `{name, content}` pairs for use during DISPATCH.
      
 ## Dispatch Agents
+   - Before dispatching agent, capture: `BATCH_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)`
    - Skill content: include any `<skill>` blocks resolved for this agent type from the Provisioned Agent step. Wrap each skill's content as: `<skill name="skill-name">\n[file content]\n</skill>`
    - Use Bash to DISPATCH a provisioned agent with its associated skills.
    - **CRITICAL**: Every agent prompt MUST include the following:
@@ -66,6 +81,17 @@ Read the **Agent Skills Mapping** table from `CLAUDE.md`
      - Story's acceptance criteria
      - `Feature file: $PRD_JSON`
      - Application directory: `$APP_DIR`
+   - After agent dispatch response, capture: `BATCH_END=$(date -u +%Y-%m-%dT%H:%M:%SZ)`.
+
+# Write log entries
+
+For each agent that ran, parse its JSON response. Construct a log entry object with:
+- `storyId`, `job`, `agent` from the dispatch context
+- `status`, `iterations`, `error` from the agent's JSON response
+- `startedAt`/`finishedAt` from the agent's JSON response; if either is `null`, substitute `$BATCH_START`/`$BATCH_END` respectively
+
+Read `$LOG_FILE`, append the new entries to the array, and write it back.
+
 
 ## All Stories Complete
 1. Output no more stories available to be processed: <promise>`$STOP_LOOP_PROMISE`<promise>"
@@ -76,7 +102,7 @@ Read the **Agent Skills Mapping** table from `CLAUDE.md`
 
       Format the output as a readable markdown table:
 
-      | Agent | Skills | Job Status |
-      |-------|--------|------------|
-      | ... | ... | ... |
+      | Agent | Skills | Job Status | Iterations|
+      |-------|--------|------------|-----------|
+      | ... | ... | ... |...|
 4. Exit the script
