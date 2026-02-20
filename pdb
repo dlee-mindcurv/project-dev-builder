@@ -1,0 +1,188 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PDB_REPO="https://github.com/dlee-mindcurv/project-dev-builder.git"
+PDB_BRANCH="main"
+FEATURES_DIR="product-development/features"
+
+usage() {
+  cat <<'EOF'
+Usage: pdb <command> [options]
+
+Commands:
+  <feature-path>              Run orchestrator on <feature-path>/prd.json
+  --reset <feature-path>      Reset PRD: passes→false, agents→pending
+  --status <feature-path>     Print story/agent status summary
+  --list                      List all features and their status
+  --select                    Select a feature interactively and run it
+  --install                   Pull latest .claude/ from upstream repo
+  --help, -h                  Show this help message
+EOF
+}
+
+die() {
+  echo "Error: $*" >&2
+  exit 1
+}
+
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    case "$1" in
+      claude)
+        die "Claude Code CLI is required. Install: https://docs.anthropic.com/en/docs/claude-code"
+        ;;
+      *)
+        die "'$1' is required but not found in PATH."
+        ;;
+    esac
+  }
+}
+
+require_plugin() {
+  local plugin_dir="$HOME/.claude/plugins/marketplaces/claude-code-plugins/plugins/$1"
+  [[ -d "$plugin_dir" ]] || die "Plugin '$1' is not installed. Install from: https://github.com/dlee-mindcurv/claude-code-plugins"
+}
+
+resolve_prd() {
+  local feature_path="${1%/}"
+  [[ -n "$feature_path" ]] || die "feature-path is required"
+  [[ -d "$feature_path" ]] || die "directory not found: $feature_path"
+  PRD_JSON="$feature_path/prd.json"
+  [[ -f "$PRD_JSON" ]] || die "prd.json not found in $feature_path"
+}
+
+find_features() {
+  FEATURES=()
+  [[ -d "$FEATURES_DIR" ]] || die "directory not found: $FEATURES_DIR"
+  for dir in "$FEATURES_DIR"/*/; do
+    [[ -f "$dir/prd.json" ]] && FEATURES+=("${dir%/}")
+  done
+  [[ ${#FEATURES[@]} -gt 0 ]] || die "no features found in $FEATURES_DIR"
+}
+
+cmd_list() {
+  find_features
+  require_cmd jq
+
+  for feat in "${FEATURES[@]}"; do
+    local name project total passed
+    name=$(basename "$feat")
+    project=$(jq -r '.project // "unknown"' "$feat/prd.json")
+    total=$(jq '.userStories | length' "$feat/prd.json")
+    passed=$(jq '[.userStories[] | select(.passes == true)] | length' "$feat/prd.json")
+    printf "%-20s %-15s %s/%s passed\n" "$name" "$project" "$passed" "$total"
+  done
+}
+
+cmd_select() {
+  find_features
+
+  local names=()
+  for feat in "${FEATURES[@]}"; do
+    names+=("$(basename "$feat")")
+  done
+
+  echo "Select a feature to run:"
+  select choice in "${names[@]}"; do
+    if [[ -n "$choice" ]]; then
+      cmd_run "$FEATURES_DIR/$choice"
+      break
+    else
+      echo "Invalid selection, try again."
+    fi
+  done
+}
+
+cmd_run() {
+  resolve_prd "$1"
+  require_cmd claude
+  require_plugin ralph-wiggum
+  exec claude /create-feature-from-json "$PRD_JSON"
+}
+
+cmd_reset() {
+  resolve_prd "$1"
+  require_cmd jq
+
+  local tmp
+  tmp=$(mktemp)
+  jq '.userStories |= [.[] | .passes = false | .agents = [.agents[] | .status = "pending"]]' "$PRD_JSON" > "$tmp"
+  mv "$tmp" "$PRD_JSON"
+  echo "Reset: $PRD_JSON"
+}
+
+cmd_status() {
+  resolve_prd "$1"
+  require_cmd jq
+
+  local project description
+  project=$(jq -r '.project // "unknown"' "$PRD_JSON")
+  description=$(jq -r '.description // ""' "$PRD_JSON")
+
+  echo "Project: $project"
+  [[ -n "$description" ]] && echo "Description: $description"
+  echo "PRD: $PRD_JSON"
+  echo ""
+
+  local total_stories stories_passed agents_done agents_pending agents_failed agents_skipped
+  total_stories=$(jq '.userStories | length' "$PRD_JSON")
+  stories_passed=$(jq '[.userStories[] | select(.passes == true)] | length' "$PRD_JSON")
+  agents_done=$(jq '[.userStories[].agents[] | select(.status == "done")] | length' "$PRD_JSON")
+  agents_pending=$(jq '[.userStories[].agents[] | select(.status == "pending")] | length' "$PRD_JSON")
+  agents_failed=$(jq '[.userStories[].agents[] | select(.status == "failed")] | length' "$PRD_JSON")
+  agents_skipped=$(jq '[.userStories[].agents[] | select(.status == "skipped")] | length' "$PRD_JSON")
+
+  jq -r '.userStories[] | "[\(if .passes then "PASS" else "FAIL" end)] \(.id): \(.title)\(.agents | map("  - \(.name): \(.status)") | "\n" + join("\n"))"' "$PRD_JSON"
+
+  echo ""
+  echo "Summary: $stories_passed/$total_stories stories passed | agents: $agents_done done, $agents_pending pending, $agents_failed failed, $agents_skipped skipped"
+}
+
+cmd_install() {
+  require_cmd git
+
+  local tmp
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+
+  git clone --depth 1 --filter=blob:none --sparse --branch "$PDB_BRANCH" "$PDB_REPO" "$tmp/repo" 2>/dev/null
+  git -C "$tmp/repo" sparse-checkout set .claude 2>/dev/null
+  cp -R "$tmp/repo/.claude/" .claude/
+  echo "Installed latest .claude/ from $PDB_REPO ($PDB_BRANCH)"
+}
+
+# --- Main dispatch ---
+
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 1
+fi
+
+case "$1" in
+  --help|-h)
+    usage
+    ;;
+  --reset)
+    [[ $# -ge 2 ]] || die "feature-path is required for --reset"
+    cmd_reset "$2"
+    ;;
+  --status)
+    [[ $# -ge 2 ]] || die "feature-path is required for --status"
+    cmd_status "$2"
+    ;;
+  --list)
+    cmd_list
+    ;;
+  --select)
+    cmd_select
+    ;;
+  --install)
+    cmd_install
+    ;;
+  --*)
+    die "unknown option: $1"
+    ;;
+  *)
+    cmd_run "$1"
+    ;;
+esac
