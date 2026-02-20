@@ -46,9 +46,12 @@ jq '{
 If `freshStart` is `true` (or if `$LOG_FILE` doesn't exist), create/reset `$LOG_FILE` to `[]`.
 
 ## Git Worktree detection **CRITICAL**
-- Check if a worktree exists at `.worktrees/<feature-name>/`. If it does:
-  - prepend `.worktrees/` to `$APP_DIR` (e.g for `./myApp` the new value is `.worktrees/myApp`)
-  - Set `$LEARNINGS_FILE` to `.worktrees/<feature-name>/LEARNINGS.md`
+- Run `git rev-parse --show-toplevel` to get the repo root and `git rev-parse --git-common-dir` to detect if cwd is inside a worktree (if `--git-common-dir` differs from `--git-dir`, we are in a worktree).
+- If in a worktree:
+  - Set `$IN_WORKTREE=true` and `$WORKTREE_ROOT` to the result of `--show-toplevel`
+  - Do **not** rewrite `$APP_DIR` — relative paths resolve correctly since cwd is the worktree root
+  - Set `$LEARNINGS_FILE` to `$WORKTREE_ROOT/LEARNINGS.md`
+- If not in a worktree: leave `$APP_DIR` and `$LEARNINGS_FILE` unchanged
 
 ## Provision Story
    - If no user story is available with a `passes:false` status (jq output is empty), jump to **All Stories Complete** task, **DOING NOTHING ELSE**

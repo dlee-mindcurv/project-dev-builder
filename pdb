@@ -4,6 +4,8 @@ set -euo pipefail
 PDB_REPO="https://github.com/dlee-mindcurv/project-dev-builder.git"
 PDB_BRANCH="main"
 FEATURES_DIR="product-development/features"
+WORKTREE_DIR=".worktrees"
+TMUX_PREFIX="pdb"
 
 usage() {
   cat <<'EOF'
@@ -15,6 +17,10 @@ Commands:
   --status <feature-path>     Print story/agent status summary
   --list                      List all features and their status
   --select                    Select a feature interactively and run it
+  --sessions                  List active build sessions and worktrees
+  --attach <feature-name>     Attach to a running build session
+  --kill <feature-name>       Kill a build session (keeps worktree)
+  --cleanup <feature-name>    Remove worktree and kill session
   --install                   Pull latest .claude/ from upstream repo
   --help, -h                  Show this help message
 EOF
@@ -52,6 +58,16 @@ resolve_prd() {
   PRD_JSON="$(realpath "$PRD_JSON")"
 }
 
+read_prd_field() {
+  local prd_file="$1" field="$2"
+  jq -r "$field // empty" "$prd_file"
+}
+
+feature_name_from_path() {
+  local feature_path="${1%/}"
+  basename "$feature_path"
+}
+
 find_features() {
   FEATURES=()
   [[ -d "$FEATURES_DIR" ]] || die "directory not found: $FEATURES_DIR"
@@ -59,6 +75,56 @@ find_features() {
     [[ -f "$dir/prd.json" ]] && FEATURES+=("${dir%/}")
   done
   [[ ${#FEATURES[@]} -gt 0 ]] || die "no features found in $FEATURES_DIR"
+}
+
+ensure_worktree() {
+  local feature_name="$1" branch_name="$2"
+  local worktree_path="$WORKTREE_DIR/$feature_name"
+
+  # Create worktree directory parent if needed
+  mkdir -p "$WORKTREE_DIR"
+
+  # Check if worktree already exists and is valid
+  local worktree_abs
+  worktree_abs="$(cd "$(dirname "$worktree_path")" 2>/dev/null && echo "$(pwd)/$(basename "$worktree_path")" || echo "$worktree_path")"
+  if [[ -d "$worktree_path" ]]; then
+    if git worktree list --porcelain | grep -q "^worktree $worktree_abs$"; then
+      echo "Reusing existing worktree: $worktree_path"
+      WORKTREE_PATH="$worktree_path"
+      return 0
+    else
+      echo "Removing stale worktree directory: $worktree_path"
+      rm -rf "$worktree_path"
+    fi
+  fi
+
+  # Fetch latest from origin
+  git fetch origin main 2>/dev/null || true
+
+  # Branch logic: local exists → remote exists → create new from origin/main
+  if git show-ref --verify --quiet "refs/heads/$branch_name" 2>/dev/null; then
+    echo "Using existing local branch: $branch_name"
+    git worktree add "$worktree_path" "$branch_name"
+  elif git show-ref --verify --quiet "refs/remotes/origin/$branch_name" 2>/dev/null; then
+    echo "Tracking remote branch: origin/$branch_name"
+    git worktree add -b "$branch_name" "$worktree_path" "origin/$branch_name"
+  else
+    echo "Creating new branch: $branch_name (from origin/main)"
+    git worktree add -b "$branch_name" "$worktree_path" origin/main
+  fi
+
+  WORKTREE_PATH="$worktree_path"
+}
+
+install_deps_if_needed() {
+  local worktree_path="$1" app_dir="$2"
+  local full_app_dir="$worktree_path/$app_dir"
+
+  # Check if app dir has a package.json but no node_modules
+  if [[ -f "$full_app_dir/package.json" ]] && [[ ! -d "$full_app_dir/node_modules" ]]; then
+    echo "Installing dependencies in $full_app_dir..."
+    (cd "$full_app_dir" && npm install)
+  fi
 }
 
 cmd_list() {
@@ -97,8 +163,138 @@ cmd_select() {
 cmd_run() {
   resolve_prd "$1"
   require_cmd claude
+  require_cmd jq
   require_plugin ralph-wiggum
-  exec claude --dangerously-skip-permissions "/create-feature-from-json $PRD_JSON"
+
+  local feature_name
+  feature_name=$(feature_name_from_path "$1")
+
+  local branch_name
+  branch_name=$(read_prd_field "$PRD_JSON" '.branchName')
+  [[ -n "$branch_name" ]] || die "branchName not found in $PRD_JSON"
+
+  local app_dir
+  app_dir=$(read_prd_field "$PRD_JSON" '.userStories[0].appDir // .appDir')
+
+  ensure_worktree "$feature_name" "$branch_name"
+  local worktree_abs
+  worktree_abs="$(realpath "$WORKTREE_PATH")"
+
+  # Install node_modules if needed
+  if [[ -n "$app_dir" ]]; then
+    install_deps_if_needed "$worktree_abs" "$app_dir"
+  fi
+
+  local session_name="${TMUX_PREFIX}-${feature_name}"
+  local claude_cmd="claude --dangerously-skip-permissions '/create-feature-from-json $PRD_JSON'"
+
+  if command -v tmux >/dev/null 2>&1; then
+    # Check if session already exists
+    if tmux has-session -t "$session_name" 2>/dev/null; then
+      echo "Session '$session_name' is already running."
+      echo "  Attach:  pdb --attach $feature_name"
+      echo "  Kill:    pdb --kill $feature_name"
+      return 0
+    fi
+
+    tmux new-session -d -s "$session_name" -c "$worktree_abs" "$claude_cmd"
+    echo "Started tmux session: $session_name"
+    echo "  Worktree: $worktree_abs"
+    echo "  PRD:      $PRD_JSON"
+    echo ""
+    echo "  Attach:   pdb --attach $feature_name"
+    echo "  Sessions: pdb --sessions"
+    echo "  Kill:     pdb --kill $feature_name"
+    echo "  Cleanup:  pdb --cleanup $feature_name"
+  else
+    echo "Warning: tmux not found. Running in foreground (blocks terminal)."
+    echo "Install tmux for parallel builds: brew install tmux"
+    cd "$worktree_abs"
+    exec claude --dangerously-skip-permissions "/create-feature-from-json $PRD_JSON"
+  fi
+}
+
+cmd_sessions() {
+  if ! command -v tmux >/dev/null 2>&1; then
+    die "tmux is not installed"
+  fi
+
+  local sessions
+  sessions=$(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep "^${TMUX_PREFIX}-" || true)
+
+  if [[ -z "$sessions" ]]; then
+    echo "No active pdb sessions."
+    return 0
+  fi
+
+  echo "Active build sessions:"
+  echo ""
+  printf "%-30s %-10s %s\n" "SESSION" "STATUS" "WORKTREE"
+  printf "%-30s %-10s %s\n" "-------" "------" "--------"
+
+  while IFS= read -r session; do
+    local feature_name="${session#${TMUX_PREFIX}-}"
+    local worktree_path="$WORKTREE_DIR/$feature_name"
+    local wt_status="missing"
+    if [[ -d "$worktree_path" ]]; then
+      wt_status="ok"
+    fi
+    printf "%-30s %-10s %s\n" "$session" "$wt_status" "$worktree_path"
+  done <<< "$sessions"
+}
+
+cmd_attach() {
+  local feature_name="$1"
+  local session_name="${TMUX_PREFIX}-${feature_name}"
+
+  if ! command -v tmux >/dev/null 2>&1; then
+    die "tmux is not installed"
+  fi
+
+  if ! tmux has-session -t "$session_name" 2>/dev/null; then
+    die "No session found: $session_name"
+  fi
+
+  exec tmux attach-session -t "$session_name"
+}
+
+cmd_kill() {
+  local feature_name="$1"
+  local session_name="${TMUX_PREFIX}-${feature_name}"
+
+  if ! command -v tmux >/dev/null 2>&1; then
+    die "tmux is not installed"
+  fi
+
+  if tmux has-session -t "$session_name" 2>/dev/null; then
+    tmux kill-session -t "$session_name"
+    echo "Killed session: $session_name"
+  else
+    echo "No session found: $session_name"
+  fi
+}
+
+cmd_cleanup() {
+  local feature_name="$1"
+  local session_name="${TMUX_PREFIX}-${feature_name}"
+  local worktree_path="$WORKTREE_DIR/$feature_name"
+
+  # Kill tmux session if running
+  if command -v tmux >/dev/null 2>&1 && tmux has-session -t "$session_name" 2>/dev/null; then
+    tmux kill-session -t "$session_name"
+    echo "Killed session: $session_name"
+  fi
+
+  # Remove worktree
+  if [[ -d "$worktree_path" ]]; then
+    git worktree remove "$worktree_path" --force
+    echo "Removed worktree: $worktree_path"
+  else
+    echo "No worktree found: $worktree_path"
+  fi
+
+  git worktree prune
+  echo "Pruned stale worktree references."
 }
 
 cmd_reset() {
@@ -176,6 +372,21 @@ case "$1" in
     ;;
   --select)
     cmd_select
+    ;;
+  --sessions)
+    cmd_sessions
+    ;;
+  --attach)
+    [[ $# -ge 2 ]] || die "feature-name is required for --attach"
+    cmd_attach "$2"
+    ;;
+  --kill)
+    [[ $# -ge 2 ]] || die "feature-name is required for --kill"
+    cmd_kill "$2"
+    ;;
+  --cleanup)
+    [[ $# -ge 2 ]] || die "feature-name is required for --cleanup"
+    cmd_cleanup "$2"
     ;;
   --install)
     cmd_install
