@@ -292,3 +292,299 @@ SH
   [ "$status" -eq 1 ]
   [[ "$output" == *"ralph-wiggum"* ]]
 }
+
+# --- --help mentions new commands ---
+
+@test "--help mentions --sessions" {
+  run "$PDB" --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--sessions"* ]]
+}
+
+@test "--help mentions --attach" {
+  run "$PDB" --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--attach"* ]]
+}
+
+@test "--help mentions --kill" {
+  run "$PDB" --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--kill"* ]]
+}
+
+@test "--help mentions --cleanup" {
+  run "$PDB" --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--cleanup"* ]]
+}
+
+# --- argument validation for new commands ---
+
+@test "--attach errors when feature-name is missing" {
+  run "$PDB" --attach
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"feature-name is required"* ]]
+}
+
+@test "--kill errors when feature-name is missing" {
+  run "$PDB" --kill
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"feature-name is required"* ]]
+}
+
+@test "--cleanup errors when feature-name is missing" {
+  run "$PDB" --cleanup
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"feature-name is required"* ]]
+}
+
+# --- tmux-dependent commands without tmux ---
+
+@test "--sessions errors when tmux is not installed" {
+  run env PATH=/usr/bin:/bin "$PDB" --sessions
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"tmux is not installed"* ]]
+}
+
+@test "--attach errors when tmux is not installed" {
+  run env PATH=/usr/bin:/bin "$PDB" --attach my-feature
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"tmux is not installed"* ]]
+}
+
+@test "--kill errors when tmux is not installed" {
+  run env PATH=/usr/bin:/bin "$PDB" --kill my-feature
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"tmux is not installed"* ]]
+}
+
+# --- cmd_run additional pre-flight tests ---
+
+@test "cmd_run errors when branchName is missing from prd.json" {
+  # Create a prd.json without branchName
+  cat > "$FEATURE_DIR/prd.json" <<'JSON'
+{
+  "project": "TestProject",
+  "appDir": "./my-app",
+  "description": "Missing branchName",
+  "userStories": []
+}
+JSON
+
+  # Mock claude and plugin so we get past those checks
+  local mock_bin="$TEST_DIR/mock-bin"
+  mkdir -p "$mock_bin"
+  cat > "$mock_bin/claude" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+  chmod +x "$mock_bin/claude"
+
+  local plugin_dir="$TEST_DIR/.claude/plugins/marketplaces/claude-code-plugins/plugins/ralph-wiggum"
+  mkdir -p "$plugin_dir"
+
+  run env PATH="$mock_bin:/usr/bin:/bin" HOME="$TEST_DIR" "$PDB" "$FEATURE_DIR"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"branchName not found"* ]]
+}
+
+@test "cmd_run errors when jq is not in PATH" {
+  # Mock claude but exclude jq from PATH
+  local mock_bin="$TEST_DIR/mock-bin"
+  mkdir -p "$mock_bin"
+  cat > "$mock_bin/claude" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+  chmod +x "$mock_bin/claude"
+
+  # PATH with mock claude but without jq (only /usr/bin:/bin may have it, so use empty + mock)
+  # We need bash and basic utils but not jq. Create a minimal PATH.
+  local restricted_bin="$TEST_DIR/restricted-bin"
+  mkdir -p "$restricted_bin"
+  # Link only essential commands (not jq)
+  for cmd in env bash dirname basename realpath mkdir cat chmod; do
+    local cmd_path
+    cmd_path=$(command -v "$cmd" 2>/dev/null || true)
+    if [[ -n "$cmd_path" ]]; then
+      ln -sf "$cmd_path" "$restricted_bin/$cmd"
+    fi
+  done
+
+  run env PATH="$mock_bin:$restricted_bin" "$PDB" "$FEATURE_DIR"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"jq"* ]]
+}
+
+# --- worktree + session lifecycle (temp git repo) ---
+
+setup_git_repo() {
+  ORIGIN_DIR=$(mktemp -d)
+  git -C "$ORIGIN_DIR" init --bare --quiet
+  REPO_DIR=$(mktemp -d)
+  git clone --quiet "$ORIGIN_DIR" "$REPO_DIR"
+  git -C "$REPO_DIR" config user.email "test@test.com"
+  git -C "$REPO_DIR" config user.name "Test"
+  git -C "$REPO_DIR" commit --allow-empty -m "init" --quiet
+  git -C "$REPO_DIR" push --quiet origin main 2>/dev/null || \
+    git -C "$REPO_DIR" push --quiet origin master 2>/dev/null
+
+  # Create feature dir inside the cloned repo
+  REPO_FEATURE_DIR="$REPO_DIR/my-feature"
+  mkdir -p "$REPO_FEATURE_DIR"
+  cat > "$REPO_FEATURE_DIR/prd.json" <<'JSON'
+{
+  "project": "WorktreeTest",
+  "appDir": "./app",
+  "branchName": "feature/wt-test",
+  "description": "Worktree lifecycle test",
+  "userStories": []
+}
+JSON
+  git -C "$REPO_DIR" add -A
+  git -C "$REPO_DIR" commit -m "add feature" --quiet
+  git -C "$REPO_DIR" push --quiet 2>/dev/null || true
+}
+
+teardown_git_repo() {
+  rm -rf "$ORIGIN_DIR" "$REPO_DIR"
+}
+
+@test "cmd_run creates worktree directory" {
+  setup_git_repo
+
+  # Mock claude and plugin
+  local mock_bin="$REPO_DIR/mock-bin"
+  mkdir -p "$mock_bin"
+  cat > "$mock_bin/claude" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+  chmod +x "$mock_bin/claude"
+
+  local plugin_dir="$REPO_DIR/.claude/plugins/marketplaces/claude-code-plugins/plugins/ralph-wiggum"
+  mkdir -p "$plugin_dir"
+
+  # Run from the cloned repo (which is a real git repo with an origin)
+  cd "$REPO_DIR"
+  # Use restricted PATH without tmux so it falls through to foreground exec,
+  # but we need to prevent exec from actually running claude.
+  # Instead, just check that the worktree was created by calling ensure_worktree directly.
+  run bash -c "
+    source '$PDB'_not_exists 2>/dev/null
+    cd '$REPO_DIR'
+    source /dev/stdin <<'FUNCS'
+$(sed -n '/^ensure_worktree/,/^}/p' "$PDB")
+FUNCS
+    WORKTREE_DIR='.worktrees'
+    ensure_worktree 'my-feature' 'feature/wt-test'
+  "
+  [ "$status" -eq 0 ]
+  [ -d "$REPO_DIR/.worktrees/my-feature" ]
+
+  # Clean up
+  git -C "$REPO_DIR" worktree remove .worktrees/my-feature --force 2>/dev/null || true
+  teardown_git_repo
+}
+
+@test "cmd_run reuses existing valid worktree" {
+  setup_git_repo
+  cd "$REPO_DIR"
+
+  # Create worktree first time
+  git worktree add .worktrees/my-feature -b feature/wt-test 2>/dev/null
+
+  # Call ensure_worktree - should print "Reusing"
+  run bash -c "
+    cd '$REPO_DIR'
+    WORKTREE_DIR='.worktrees'
+    $(sed -n '/^ensure_worktree/,/^}/p' "$PDB")
+    ensure_worktree 'my-feature' 'feature/wt-test'
+  "
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Reusing"* ]]
+
+  # Clean up
+  git -C "$REPO_DIR" worktree remove .worktrees/my-feature --force 2>/dev/null || true
+  teardown_git_repo
+}
+
+@test "cmd_cleanup removes worktree" {
+  setup_git_repo
+  cd "$REPO_DIR"
+
+  # Create a worktree
+  git worktree add .worktrees/my-feature -b feature/wt-test 2>/dev/null
+  [ -d "$REPO_DIR/.worktrees/my-feature" ]
+
+  # Run cleanup (use restricted PATH without tmux - cleanup handles that gracefully)
+  WORKTREE_DIR=".worktrees"
+  run bash -c "
+    cd '$REPO_DIR'
+    WORKTREE_DIR='.worktrees'
+    TMUX_PREFIX='pdb'
+    $(sed -n '/^cmd_cleanup/,/^}/p' "$PDB")
+    cmd_cleanup 'my-feature'
+  "
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Removed worktree"* ]]
+  [ ! -d "$REPO_DIR/.worktrees/my-feature" ]
+
+  teardown_git_repo
+}
+
+@test "cmd_cleanup reports missing worktree" {
+  setup_git_repo
+  cd "$REPO_DIR"
+
+  run bash -c "
+    cd '$REPO_DIR'
+    WORKTREE_DIR='.worktrees'
+    TMUX_PREFIX='pdb'
+    $(sed -n '/^cmd_cleanup/,/^}/p' "$PDB")
+    cmd_cleanup 'nonexistent'
+  "
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"No worktree found"* ]]
+
+  teardown_git_repo
+}
+
+# --- helper function unit tests ---
+
+@test "read_prd_field returns field value" {
+  run bash -c "
+    $(sed -n '/^read_prd_field/,/^}/p' "$PDB")
+    read_prd_field '$FEATURE_DIR/prd.json' '.project'
+  "
+  [ "$status" -eq 0 ]
+  [ "$output" = "TestProject" ]
+}
+
+@test "read_prd_field returns empty for missing field" {
+  run bash -c "
+    $(sed -n '/^read_prd_field/,/^}/p' "$PDB")
+    read_prd_field '$FEATURE_DIR/prd.json' '.nonExistentField'
+  "
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "feature_name_from_path extracts basename" {
+  run bash -c "
+    $(sed -n '/^feature_name_from_path/,/^}/p' "$PDB")
+    feature_name_from_path '/some/path/my-feature'
+  "
+  [ "$status" -eq 0 ]
+  [ "$output" = "my-feature" ]
+}
+
+@test "feature_name_from_path handles trailing slash" {
+  run bash -c "
+    $(sed -n '/^feature_name_from_path/,/^}/p' "$PDB")
+    feature_name_from_path '/some/path/my-feature/'
+  "
+  [ "$status" -eq 0 ]
+  [ "$output" = "my-feature" ]
+}
