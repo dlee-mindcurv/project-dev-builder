@@ -26,4 +26,6 @@ Skills to inject into subagents. The orchestrator reads this mapping and passes 
 | `run-typecheck`    |                                    |
 | `write-tests`      |                                    |
 
+## Learnings
 
+- [write-tests] US-002: When the DigitalClock component was updated to use separate span elements for colons (with visibility toggling), existing tests using `screen.getByText("HH:MM:SS")` broke because the text is now split across multiple DOM nodes. Use `clockDiv?.textContent` to check the combined text content instead of `getByText` for split text nodes.
