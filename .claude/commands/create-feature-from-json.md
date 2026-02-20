@@ -8,13 +8,11 @@ argument-hint: [path to prd.json]
 
 ## Bootstrap
 - Set `$PRD_JSON` to the first argument passed to the command
-- Set `$STOP_LOOP_PROMISE` to "JOBS_COMPLETE"
 - Derive the feature-name from `$PRD_JSON` (e.g., for `product-development/features/pink-footer/prd.json`, the feature-name is `pink-footer`).
 - Derive the feature-directory from `$PRD_JSON` (e.g., for `product-development/features/pink-footer/prd.json`, the feature-directory is `product-development/features/pink-footer/`).
+- Set `$STOP_LOOP_PROMISE` to "JOBS_COMPLETE"
 - Set `$LOG_FILE` to `<feature-directory>/agent-log.json`
 - Set `$LEARNINGS_FILE` to `<feature-directory>/learnings.md`
-
-
 
 ## Rules
 - Each agent MUST receive `$PRD_JSON` in its prompt so it may update its own status.
@@ -45,6 +43,10 @@ jq '{
 ```
 If `freshStart` is `true` (or if `$LOG_FILE` doesn't exist), create/reset `$LOG_FILE` to `[]`.
 
+## Git Worktree detection **CRITICAL**
+- Check if a worktree exists at `.worktrees/<feature-name>/`. If it does:
+  - prepend `.worktrees/` to `$APP_DIR` (e.g for `./myApp` the new value is `.worktrees/myApp`)
+  - Set `$LEARNINGS_FILE` to `.worktrees/<feature-name>/learnings.md`
 
 ## Provision Story
    - If no user story is available with a `passes:false` status (jq output is empty), jump to **All Stories Complete** task, **DOING NOTHING ELSE**
