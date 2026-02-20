@@ -7,7 +7,7 @@ argument-hint: [path to prd.json]
 # Say Hello Command
 
 ## Bootstrap
-- Set `$PRD_JSON` to the first argument passed to the command
+- Set `$PRD_JSON` to the first argument passed to the command. If the argument does not end in `.json`, treat it as a directory and append `/prd.json` to it.
 - Derive the feature-name from `$PRD_JSON` (e.g., for `product-development/features/pink-footer/prd.json`, the feature-name is `pink-footer`).
 - Derive the feature-directory from `$PRD_JSON` (e.g., for `product-development/features/pink-footer/prd.json`, the feature-directory is `product-development/features/pink-footer/`).
 - Set `$STOP_LOOP_PROMISE` to "JOBS_COMPLETE"
@@ -40,7 +40,7 @@ Read the **Agent Skills Mapping** table from `CLAUDE.md`
 jq '{
   branchName: ([.branchName] | @tsv),
   featureDescription: ([.description] | @tsv),
-  freshStart: ([.userStories[0].jobs[].status] | all(. == "pending")),
+  freshStart: ([.userStories[0].agents[].status] | all(. == "pending")),
 }' $PRD_JSON
 ```
 If `freshStart` is `true` (or if `$LOG_FILE` doesn't exist), create/reset `$LOG_FILE` to `[]`.
