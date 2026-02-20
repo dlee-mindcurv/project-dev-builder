@@ -588,3 +588,67 @@ FUNCS
   [ "$status" -eq 0 ]
   [ "$output" = "my-feature" ]
 }
+
+# --- git path resolution tests (worktree vs non-worktree) ---
+
+@test "git add APP_DIR/ works from worktree root" {
+  setup_git_repo
+  cd "$REPO_DIR"
+
+  # Create a worktree
+  git worktree add .worktrees/my-feature -b feature/wt-test 2>/dev/null
+
+  # Create APP_DIR and a file inside the worktree
+  mkdir -p "$REPO_DIR/.worktrees/my-feature/app"
+  echo "hello" > "$REPO_DIR/.worktrees/my-feature/app/test.txt"
+
+  # From worktree root, git add ./app/ should succeed
+  run git -C "$REPO_DIR/.worktrees/my-feature" add ./app/
+  [ "$status" -eq 0 ]
+
+  # Verify the file is staged
+  run git -C "$REPO_DIR/.worktrees/my-feature" diff --cached --name-only
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"app/test.txt"* ]]
+
+  # Clean up
+  git -C "$REPO_DIR" worktree remove .worktrees/my-feature --force 2>/dev/null || true
+  teardown_git_repo
+}
+
+@test "git -C APP_DIR fails when APP_DIR is .worktrees path that doesn't exist in worktree" {
+  setup_git_repo
+  cd "$REPO_DIR"
+
+  # Create a worktree
+  git worktree add .worktrees/my-app -b feature/wt-test 2>/dev/null
+
+  # From worktree root, git -C .worktrees/my-app should fail because
+  # .worktrees/my-app is not a valid path relative to inside the worktree
+  run git -C "$REPO_DIR/.worktrees/my-app" git -C .worktrees/my-app status
+  [ "$status" -ne 0 ]
+
+  # Clean up
+  git -C "$REPO_DIR" worktree remove .worktrees/my-app --force 2>/dev/null || true
+  teardown_git_repo
+}
+
+@test "git add APP_DIR/ works from repo root (non-worktree)" {
+  setup_git_repo
+  cd "$REPO_DIR"
+
+  # Create APP_DIR and a file in the main repo (no worktree)
+  mkdir -p "$REPO_DIR/app"
+  echo "hello" > "$REPO_DIR/app/test.txt"
+
+  # From repo root, git add ./app/ should succeed
+  run git -C "$REPO_DIR" add ./app/
+  [ "$status" -eq 0 ]
+
+  # Verify the file is staged
+  run git -C "$REPO_DIR" diff --cached --name-only
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"app/test.txt"* ]]
+
+  teardown_git_repo
+}

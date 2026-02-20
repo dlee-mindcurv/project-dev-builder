@@ -49,9 +49,8 @@ If `freshStart` is `true` (or if `$LOG_FILE` doesn't exist), create/reset `$LOG_
 - Run `git rev-parse --show-toplevel` to get the repo root and `git rev-parse --git-common-dir` to detect if cwd is inside a worktree (if `--git-common-dir` differs from `--git-dir`, we are in a worktree).
 - If in a worktree:
   - Set `$IN_WORKTREE=true` and `$WORKTREE_ROOT` to the result of `--show-toplevel`
-  - Do **not** rewrite `$APP_DIR` — relative paths resolve correctly since cwd is the worktree root
   - Set `$LEARNINGS_FILE` to `$WORKTREE_ROOT/LEARNINGS.md`
-- If not in a worktree: leave `$APP_DIR` and `$LEARNINGS_FILE` unchanged
+- If not in a worktree: leave `$LEARNINGS_FILE` unchanged
 
 ## Provision Story
    - If no user story is available with a `passes:false` status (jq output is empty), jump to **All Stories Complete** task, **DOING NOTHING ELSE**
@@ -120,11 +119,11 @@ Read `$LOG_FILE`, append the new entries to the array, and write it back.
       | ... | ... | ... |...|
 
 ### Commit changes and create a PR
-1. Stage app changes: "git -C `$APP_DIR` add <original-appDir>/"
-2. Stage CLAUDE.md if it was modified: "git -C  `$APP_DIR` add CLAUDE.md"
-3. Check if there are staged changes: "git -C  `$APP_DIR` diff --cached --quiet". If there are **no** staged changes, skip steps 4-6 (nothing to commit/push/PR) and proceed to "Exit Claude".
-4. Commit: 'git -C `$APP_DIR` commit -m "feat(<feature-name>): `featureDescription`"'
-5. Push: "git -C `$APP_DIR` push -u origin `$branchName`"
+1. Stage app changes: "git add `$APP_DIR`/"
+2. Stage CLAUDE.md if it was modified: "git add CLAUDE.md"
+3. Check if there are staged changes: "git diff --cached --quiet". If there are **no** staged changes, skip steps 4-6 (nothing to commit/push/PR) and proceed to "Exit Claude".
+4. Commit: 'git commit -m "feat(<feature-name>): `featureDescription`"'
+5. Push: "git push -u origin `$branchName`"
 6. Create PR (only if one doesn't already exist for `branchName`)
 
 ### Exit Claude
