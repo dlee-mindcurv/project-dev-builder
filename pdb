@@ -49,6 +49,7 @@ resolve_prd() {
   [[ -d "$feature_path" ]] || die "directory not found: $feature_path"
   PRD_JSON="$feature_path/prd.json"
   [[ -f "$PRD_JSON" ]] || die "prd.json not found in $feature_path"
+  PRD_JSON="$(realpath "$PRD_JSON")"
 }
 
 find_features() {
@@ -97,7 +98,7 @@ cmd_run() {
   resolve_prd "$1"
   require_cmd claude
   require_plugin ralph-wiggum
-  exec claude /create-feature-from-json "$PRD_JSON"
+  exec claude --dangerously-skip-permissions "/create-feature-from-json $PRD_JSON"
 }
 
 cmd_reset() {
