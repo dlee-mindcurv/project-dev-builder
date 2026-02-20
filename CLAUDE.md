@@ -26,4 +26,9 @@ Skills to inject into subagents. The orchestrator reads this mapping and passes 
 | `run-typecheck`    |                                    |
 | `write-tests`      |                                    |
 
+## Learnings
 
+- [build-user-story] US-001: The my-app directory lives at `/Users/david.g.lee/Documents/project-dev-builder/.worktrees/digital-clock/my-app` (not `.worktrees/my-app`) — always check the worktree branch name to derive the correct path.
+- [build-user-story] US-001: `@/*` in tsconfig maps to `./src/*`, so `@/components/Footer` resolves to `src/components/Footer.tsx`.
+- [build-user-story] US-001: DigitalClock is a client component (uses useState/useEffect) and must have `"use client"` directive at the top; Footer can remain a server component and just import DigitalClock.
+- [write-tests] US-002: When clock splits time into separate text nodes (hh, colon span, mm, colon span, ss), `getByText("12:00:00")` fails — use `link.textContent` to check combined text; use `getAllByTestId("clock-colon")` to target colon spans.
