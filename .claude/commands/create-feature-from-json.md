@@ -12,7 +12,7 @@ argument-hint: [path to prd.json]
 - Derive the feature-directory from `$PRD_JSON` (e.g., for `product-development/features/pink-footer/prd.json`, the feature-directory is `product-development/features/pink-footer/`).
 - Set `$STOP_LOOP_PROMISE` to "JOBS_COMPLETE"
 - Set `$LOG_FILE` to `<feature-directory>/agent-log.json`
-- Set `$LEARNINGS_FILE` to `<feature-directory>/learnings.md`
+- Set `$LEARNINGS_FILE` to `<feature-directory>/LEARNINGS.md`
 
 ## Rules
 - Each agent MUST receive `$PRD_JSON` in its prompt so it may update its own status.
@@ -29,7 +29,7 @@ Read the **Agent Skills Mapping** table from `CLAUDE.md`
 
 ## Steps
 
-1. Use Bash to run `jq` against `$PRD_JSON` to read each job's `userStories`'s `id`,`appDir`,`acceptanceCriteria`,`model`,`passes`, and `agents` status:
+1. Use Bash to run `jq` against `$PRD_JSON` to read each job's `userStories`'s `id`,`appDir`,`branchName`, `acceptanceCriteria`,`model`,`passes`, and `agents` status:
    ```
    jq -r 'first(.userStories | to_entries[] | select(.value.passes == false)) // empty | "\(.key) \(.value.id) \(.value.model) \(.value.passes) \(.value.agents | map("\(.name):\(.status):\(.dependsOn)") | join(","))"' "jobs.json"
    ```
@@ -38,6 +38,8 @@ Read the **Agent Skills Mapping** table from `CLAUDE.md`
 - Run a single consolidated status query:
 ```bash
 jq '{
+  branchName: ([.branchName] | @tsv),
+  featureDescription: ([.description] | @tsv),
   freshStart: ([.userStories[0].jobs[].status] | all(. == "pending")),
 }' $PRD_JSON
 ```
@@ -46,7 +48,7 @@ If `freshStart` is `true` (or if `$LOG_FILE` doesn't exist), create/reset `$LOG_
 ## Git Worktree detection **CRITICAL**
 - Check if a worktree exists at `.worktrees/<feature-name>/`. If it does:
   - prepend `.worktrees/` to `$APP_DIR` (e.g for `./myApp` the new value is `.worktrees/myApp`)
-  - Set `$LEARNINGS_FILE` to `.worktrees/<feature-name>/learnings.md`
+  - Set `$LEARNINGS_FILE` to `.worktrees/<feature-name>/LEARNINGS.md`
 
 ## Provision Story
    - If no user story is available with a `passes:false` status (jq output is empty), jump to **All Stories Complete** task, **DOING NOTHING ELSE**
@@ -97,10 +99,14 @@ For each agent that ran, parse its JSON response. Construct a log entry object w
 Read `$LOG_FILE`, append the new entries to the array, and write it back.
 
 
+
 ## All Stories Complete
-1. Output no more stories available to be processed: <promise>`$STOP_LOOP_PROMISE`<promise>"
-2. Remove the `.claude/ralph-loop.local.md` file (if exists)
-3. Display a combined report showing each agent from the skills mapping table along with:
+
+### Pre git cleanup
+1. Read `$LEARNINGS_FILE`, If it contains findings beyond the initial template (i.e., not just "(none yet)"), read the worktree's `CLAUDE.md` at `$APP_DIR/CLAUDE.md` and append the learnings to a `## Learnings` section at the bottom. If the section already exists, merge the new findings into it. Write the updated file back to CLAUDE.md.
+2. Output no more stories available to be processed: <promise>`$STOP_LOOP_PROMISE`<promise>"
+3. Remove the `.claude/ralph-loop.local.md` file (if exists)
+4. Display a combined report showing each agent from the skills mapping table along with:
     - Its assigned skills (from CLAUDE.md)
     - Its job status (from jobs.json), or "no job found" if the agent isn't listed in jobs.json
 
@@ -109,4 +115,14 @@ Read `$LOG_FILE`, append the new entries to the array, and write it back.
       | Agent | Skills | Job Status | Iterations|
       |-------|--------|------------|-----------|
       | ... | ... | ... |...|
-4. Exit the script
+
+### Commit changes and create a PR
+1. Stage app changes: "git -C `$APP_DIR` add <original-appDir>/"
+2. Stage CLAUDE.md if it was modified: "git -C  `$APP_DIR` add CLAUDE.md"
+3. Check if there are staged changes: "git -C  `$APP_DIR` diff --cached --quiet". If there are **no** staged changes, skip steps 4-6 (nothing to commit/push/PR) and proceed to "Exit Claude".
+4. Commit: 'git -C `$APP_DIR` commit -m "feat(<feature-name>): `featureDescription`"'
+5. Push: "git -C `$APP_DIR` push -u origin `$branchName`"
+6. Create PR (only if one doesn't already exist for `branchName`)
+
+### Exit Claude
+- run `/exit`
