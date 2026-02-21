@@ -26,4 +26,6 @@ Skills to inject into subagents. The orchestrator reads this mapping and passes 
 | `run-typecheck`    |                                    |
 | `write-tests`      |                                    |
 
+## Learnings
 
+- [run-playwright] US-001: CSS opacity transition tests fail if you check opacity immediately after page.goto — the animation may still be mid-transition (e.g., opacity ~0.004). Use page.waitForTimeout(1500) after checking the transition property to let the 1s fade-in complete before asserting opacity === "1".
