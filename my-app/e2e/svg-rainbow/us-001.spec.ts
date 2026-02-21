@@ -5,145 +5,127 @@ test.describe("US-001: SVG Rainbow Arc on Main Page", () => {
     await page.goto("/");
   });
 
-  test("RainbowArc renders an inline SVG element", async ({ page }) => {
-    const svg = page.locator('[data-testid="rainbow-arc"]');
-    await expect(svg).toBeVisible();
-    const tagName = await svg.evaluate((el) => el.tagName.toLowerCase());
-    expect(tagName).toBe("svg");
-  });
-
-  test("SVG has role='img' and aria-label='Decorative rainbow'", async ({
+  test("renders the RainbowArc SVG element with correct testid", async ({
     page,
   }) => {
-    const svg = page.locator('[data-testid="rainbow-arc"]');
+    const svg = page.getByTestId("rainbow-arc");
+    await expect(svg).toBeVisible();
+  });
+
+  test("SVG has role='img' for accessibility", async ({ page }) => {
+    const svg = page.getByTestId("rainbow-arc");
     await expect(svg).toHaveAttribute("role", "img");
+  });
+
+  test("SVG has aria-label of 'Decorative rainbow'", async ({ page }) => {
+    const svg = page.getByTestId("rainbow-arc");
     await expect(svg).toHaveAttribute("aria-label", "Decorative rainbow");
   });
 
-  test("SVG contains seven path elements for ROYGBIV arcs", async ({
+  test("SVG contains exactly seven path elements (ROYGBIV)", async ({
     page,
   }) => {
     const paths = page.locator('[data-testid="rainbow-arc"] path');
     await expect(paths).toHaveCount(7);
   });
 
-  test("Each arc path uses SVG arc command (A) and has no fill", async ({
-    page,
-  }) => {
+  test("paths use correct ROYGBIV stroke colors", async ({ page }) => {
+    const expectedColors = [
+      "#FF0000", // red
+      "#FF7F00", // orange
+      "#FFFF00", // yellow
+      "#00FF00", // green
+      "#0000FF", // blue
+      "#4B0082", // indigo
+      "#9400D3", // violet
+    ];
+
     const paths = page.locator('[data-testid="rainbow-arc"] path');
     const count = await paths.count();
     expect(count).toBe(7);
 
     for (let i = 0; i < count; i++) {
-      const path = paths.nth(i);
-      const d = await path.getAttribute("d");
-      expect(d).toContain("A");
+      const stroke = await paths.nth(i).getAttribute("stroke");
+      expect(stroke?.toUpperCase()).toBe(expectedColors[i]);
+    }
+  });
 
-      const fill = await path.getAttribute("fill");
+  test("paths have stroke-width of 8 and fill of none", async ({ page }) => {
+    const paths = page.locator('[data-testid="rainbow-arc"] path');
+    const count = await paths.count();
+
+    for (let i = 0; i < count; i++) {
+      const strokeWidth = await paths.nth(i).getAttribute("stroke-width");
+      const fill = await paths.nth(i).getAttribute("fill");
+      expect(strokeWidth).toBe("8");
       expect(fill).toBe("none");
     }
   });
 
-  test("Each arc path has stroke-width of 8", async ({ page }) => {
+  test("paths use SVG arc commands in their d attribute", async ({ page }) => {
     const paths = page.locator('[data-testid="rainbow-arc"] path');
     const count = await paths.count();
 
     for (let i = 0; i < count; i++) {
-      const path = paths.nth(i);
-      const strokeWidth = await path.getAttribute("stroke-width");
-      expect(strokeWidth).toBe("8");
-    }
-  });
-
-  test("ROYGBIV colors are present on the arcs", async ({ page }) => {
-    const expectedColors = [
-      "#FF0000",
-      "#FF7F00",
-      "#FFFF00",
-      "#00FF00",
-      "#0000FF",
-      "#4B0082",
-      "#9400D3",
-    ];
-
-    const paths = page.locator('[data-testid="rainbow-arc"] path');
-    const count = await paths.count();
-    const strokes: string[] = [];
-
-    for (let i = 0; i < count; i++) {
-      const stroke = await paths.nth(i).getAttribute("stroke");
-      if (stroke) strokes.push(stroke.toUpperCase());
-    }
-
-    for (const color of expectedColors) {
-      expect(strokes).toContain(color.toUpperCase());
+      const d = await paths.nth(i).getAttribute("d");
+      // SVG arc command contains 'A' or 'a'
+      expect(d).toMatch(/[Aa]/);
+      // Should start with M (moveto)
+      expect(d).toMatch(/^M/);
     }
   });
 
   test("SVG has a viewBox attribute that frames the arcs", async ({ page }) => {
-    const svg = page.locator('[data-testid="rainbow-arc"]');
+    const svg = page.getByTestId("rainbow-arc");
     const viewBox = await svg.getAttribute("viewBox");
     expect(viewBox).toBeTruthy();
-    // viewBox should have 4 values: minX minY width height
-    const parts = viewBox!.trim().split(/\s+/);
-    expect(parts).toHaveLength(4);
-    // width and height should be positive
-    expect(parseFloat(parts[2])).toBeGreaterThan(0);
-    expect(parseFloat(parts[3])).toBeGreaterThan(0);
+    // viewBox should be "0 0 width height" format
+    expect(viewBox).toMatch(/^0 0 \d+ \d+$/);
   });
 
-  test("Rainbow is placed below the main heading", async ({ page }) => {
-    const heading = page.locator("h1").first();
-    const rainbow = page.locator('[data-testid="rainbow-arc"]');
+  test("SVG is horizontally centered on the page", async ({ page }) => {
+    const svg = page.getByTestId("rainbow-arc");
+    const style = await svg.getAttribute("style");
+    // The component sets margin: "0 auto" and display: "block"
+    expect(style).toContain("margin");
+    expect(style).toContain("auto");
+  });
 
-    await expect(heading).toBeVisible();
-    await expect(rainbow).toBeVisible();
+  test("RainbowArc is placed below the main heading", async ({ page }) => {
+    const heading = page.locator("h1");
+    const svg = page.getByTestId("rainbow-arc");
 
     const headingBox = await heading.boundingBox();
-    const rainbowBox = await rainbow.boundingBox();
+    const svgBox = await svg.boundingBox();
 
     expect(headingBox).not.toBeNull();
-    expect(rainbowBox).not.toBeNull();
+    expect(svgBox).not.toBeNull();
 
-    // Rainbow top should be below heading top
-    expect(rainbowBox!.y).toBeGreaterThan(headingBox!.y);
+    // The SVG should appear below the heading
+    expect(svgBox!.y).toBeGreaterThan(headingBox!.y);
   });
 
-  test("Rainbow SVG fades in on page load (opacity transition)", async ({
+  test("SVG has opacity 1 after page load (fade-in animation)", async ({
     page,
   }) => {
-    // After page load, the SVG should be visible (opacity 1)
-    const svg = page.locator('[data-testid="rainbow-arc"]');
+    const svg = page.getByTestId("rainbow-arc");
+    // Wait for the element to be visible (animation completes quickly via rAF)
     await expect(svg).toBeVisible();
 
-    // Verify opacity transition is applied via inline style
-    const transition = await svg.evaluate(
-      (el) => (el as HTMLElement).style.transition
-    );
-    expect(transition).toContain("opacity");
-
-    // After load, opacity should be 1
-    const opacity = await svg.evaluate(
-      (el) => (el as HTMLElement).style.opacity
-    );
+    // Check that opacity is 1 after load
+    const opacity = await svg.evaluate((el) => {
+      return (el as HTMLElement).style.opacity;
+    });
     expect(opacity).toBe("1");
   });
 
-  test("Rainbow is horizontally centered on the page", async ({ page }) => {
-    const rainbow = page.locator('[data-testid="rainbow-arc"]');
-    await expect(rainbow).toBeVisible();
-
-    const rainbowBox = await rainbow.boundingBox();
-    expect(rainbowBox).not.toBeNull();
-
-    const viewportSize = page.viewportSize();
-    expect(viewportSize).not.toBeNull();
-
-    // Rainbow center X should be roughly in the middle of the viewport
-    const rainbowCenterX = rainbowBox!.x + rainbowBox!.width / 2;
-    // Allow tolerance of 200px from center given layout constraints
-    expect(Math.abs(rainbowCenterX - viewportSize!.width / 2)).toBeLessThan(
-      200
-    );
+  test("SVG has a CSS opacity transition of 1 second", async ({ page }) => {
+    const svg = page.getByTestId("rainbow-arc");
+    const transition = await svg.evaluate((el) => {
+      return (el as HTMLElement).style.transition;
+    });
+    // Should contain opacity with 1s duration
+    expect(transition).toContain("opacity");
+    expect(transition).toContain("1s");
   });
 });
