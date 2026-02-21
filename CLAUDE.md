@@ -30,3 +30,7 @@ Skills to inject into subagents. The orchestrator reads this mapping and passes 
 
 - [write-tests] US-001: When testing React components that use requestAnimationFrame for fade-in effects, mock RAF in beforeEach but use a separate test with a manually-triggered RAF callback to verify the opacity transition from 0 to 1.
 - [write-tests] US-001: SVG attribute stroke-width is rendered as a lowercase hyphenated attribute in JSDOM, so use getAttribute("stroke-width") rather than camelCase strokeWidth when querying path elements in tests.
+- [build-user-story] US-001: When building an SVG rainbow arc with fade-in, use requestAnimationFrame in useEffect to trigger opacity transition from 0 to 1, ensuring the animation fires after the component mounts in the browser.
+- [build-user-story] US-001: For semi-circular SVG arcs, the SVG arc command "M startX startY A r r 0 0 1 endX endY" with startX=cx-r and endX=cx+r produces a proper upper semi-circle (sweep-flag=1 goes clockwise, creating the top half).
+- [build-user-story] US-001: viewBox padding should account for stroke-width to prevent arc clipping at edges; use cx*2+strokeWidth for width and cy+strokeWidth for height when arcs sit on the horizontal center line.
+- [run-playwright] US-001: All 10 E2E tests passed on first run. The opacity transition test works by checking style.opacity after page load — requestAnimationFrame fires quickly enough that the opacity is already 1 when the test reads it. No need to add extra waits for this particular fade-in pattern.
