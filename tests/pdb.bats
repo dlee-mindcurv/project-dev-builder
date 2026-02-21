@@ -652,3 +652,42 @@ FUNCS
 
   teardown_git_repo
 }
+
+# --- Playwright env var configuration tests ---
+
+@test "playwright.config.ts reads PW_PORT from env" {
+  run grep -c 'PW_PORT' "$BATS_TEST_DIRNAME/../my-app/playwright.config.ts"
+  [ "$status" -eq 0 ]
+  [ "$output" -ge 1 ]
+}
+
+@test "playwright.config.ts reads PW_TEST_DIR from env" {
+  run grep -c 'PW_TEST_DIR' "$BATS_TEST_DIRNAME/../my-app/playwright.config.ts"
+  [ "$status" -eq 0 ]
+  [ "$output" -ge 1 ]
+}
+
+@test "playwright.config.ts defaults port to 3000" {
+  run grep 'PW_PORT.*3000' "$BATS_TEST_DIRNAME/../my-app/playwright.config.ts"
+  [ "$status" -eq 0 ]
+}
+
+@test "playwright.config.ts defaults testDir to ./e2e" {
+  run grep 'PW_TEST_DIR.*\./e2e' "$BATS_TEST_DIRNAME/../my-app/playwright.config.ts"
+  [ "$status" -eq 0 ]
+}
+
+@test "run-playwright agent picks available port" {
+  run grep 'PW_PORT=.*createServer' "$BATS_TEST_DIRNAME/../.claude/agents/run-playwright.md"
+  [ "$status" -eq 0 ]
+}
+
+@test "run-playwright agent scopes tests under FEATURE_NAME" {
+  run grep 'e2e/\$FEATURE_NAME' "$BATS_TEST_DIRNAME/../.claude/agents/run-playwright.md"
+  [ "$status" -eq 0 ]
+}
+
+@test "create-feature-from-json passes FEATURE_NAME to agents" {
+  run grep 'Feature name.*FEATURE_NAME' "$BATS_TEST_DIRNAME/../.claude/commands/create-feature-from-json.md"
+  [ "$status" -eq 0 ]
+}

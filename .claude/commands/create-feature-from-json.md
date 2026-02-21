@@ -8,7 +8,7 @@ argument-hint: [path to prd.json]
 
 ## Bootstrap
 - Set `$PRD_JSON` to the first argument passed to the command. If the argument does not end in `.json`, treat it as a directory and append `/prd.json` to it.
-- Derive the feature-name from `$PRD_JSON` (e.g., for `product-development/features/pink-footer/prd.json`, the feature-name is `pink-footer`).
+- Derive `$FEATURE_NAME` from `$PRD_JSON` (e.g., for `product-development/features/pink-footer/prd.json`, `$FEATURE_NAME` is `pink-footer`).
 - Derive the feature-directory from `$PRD_JSON` (e.g., for `product-development/features/pink-footer/prd.json`, the feature-directory is `product-development/features/pink-footer/`).
 - Set `$STOP_LOOP_PROMISE` to "JOBS_COMPLETE"
 - Set `$LOG_FILE` to `<feature-directory>/agent-log.json`
@@ -88,6 +88,7 @@ If `freshStart` is `true` (or if `$LOG_FILE` doesn't exist), create/reset `$LOG_
      - Story's acceptance criteria
      - `Feature file: $PRD_JSON`
      - Application directory: `$APP_DIR`
+     - Feature name: `$FEATURE_NAME` (the feature-name derived during Bootstrap, e.g., `pink-footer`)
      - `$LEARNINGS_FILE` — the learnings file path, which may be in a worktree (for reading/writing learnings)
    - After agent dispatch response, capture: `BATCH_END=$(date -u +%Y-%m-%dT%H:%M:%SZ)`.
 
@@ -122,7 +123,7 @@ Read `$LOG_FILE`, append the new entries to the array, and write it back.
 1. Stage app changes: "git add `$APP_DIR`/"
 2. Stage CLAUDE.md if it was modified: "git add CLAUDE.md"
 3. Check if there are staged changes: "git diff --cached --quiet". If there are **no** staged changes, skip steps 4-6 (nothing to commit/push/PR) and proceed to "Exit Claude".
-4. Commit: 'git commit -m "feat(<feature-name>): `featureDescription`"'
+4. Commit: 'git commit -m "feat(<`$FEATURE_NAME`>): `featureDescription`"'
 5. Push: "git push -u origin `$branchName`"
 6. Create PR (only if one doesn't already exist for `branchName`)
 

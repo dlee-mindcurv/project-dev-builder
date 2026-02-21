@@ -22,11 +22,11 @@ You are the Playwright E2E agent. You receive a user story, the feature file pat
 
 ### 1. Detect UI changes
 
-Read the story's acceptance criteria. Identify only the components and pages referenced by this story's criteria. Do not scan or review files unrelated to this story. If the story has no UI-facing acceptance criteria (no components, pages, or visual elements referenced), set the `playwright` job to `"skipped"` and the `build` job to `"done"` in the feature file, then exit.
+Read the story's acceptance criteria. Identify only the components and pages referenced by this story's criteria. Do not scan or review files unrelated to this story. If the story has no UI-facing acceptance criteria (no components, pages, or visual elements referenced), set the `playwright` job to `"done"` in the feature file, then exit.
 
 ### 2. Write E2E tests
 
-Create Playwright test files under `$APP_DIR/e2e/`. Name them after the story ID (e.g., `us-001.spec.ts`).
+Create Playwright test files under `$APP_DIR/e2e/$FEATURE_NAME/`. Name them after the story ID (e.g., `e2e/pink-footer/us-001.spec.ts`).
 
 Import from `@playwright/test`:
 ```ts
@@ -44,7 +44,12 @@ Keep tests focused and fast. Use `page.goto("/")` with the baseURL from the Play
 
 ### 3. Run tests
 
-Execute `cd $APP_DIR && npx playwright test`. If tests fail:
+Pick an available port and run tests scoped to the feature directory:
+```bash
+PW_PORT=$(node -e "const s=require('net').createServer();s.listen(0,()=>{console.log(s.address().port);s.close()})")
+```
+
+Execute `cd $APP_DIR && PW_PORT=$PW_PORT PW_TEST_DIR=./e2e/$FEATURE_NAME npx playwright test`. If tests fail:
 - Read the failure output carefully
 - Fix the **application code directly related to this story** if the UI doesn't match acceptance criteria, OR fix the **test** if the assertion is wrong
 - Re-run until all tests pass
